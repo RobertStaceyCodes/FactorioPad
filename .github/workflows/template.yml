@@ -1,0 +1,90 @@
+name: Build app template
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The template is game-free: Xcode copies these paths into the app, then they are removed.
+      - name: Prepare game-free placeholders
+        run: |
+          set -euo pipefail
+          GUEST=Vendor/FactorioGuest.framework
+          DATA=Vendor/FactorioData
+          mkdir -p "$GUEST" "$DATA/base/scenarios/freeplay" "$DATA/core"
+          printf 'placeholder' > "$GUEST/FactorioGuest"
+          chmod +x "$GUEST/FactorioGuest"
+          cat > "$GUEST/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key><string>FactorioGuest</string>
+            <key>CFBundleIdentifier</key><string>pl.adrian.FactorioPad.FactorioGuest</string>
+            <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+            <key>CFBundleName</key><string>FactorioGuest</string>
+            <key>CFBundlePackageType</key><string>FMWK</string>
+            <key>CFBundleShortVersionString</key><string>0</string>
+            <key>CFBundleVersion</key><string>1</string>
+            <key>MinimumOSVersion</key><string>17.0</string>
+          </dict>
+          </plist>
+          PLIST
+          printf 'placeholder' > "$DATA/cacert.pem"
+          printf '{}\n' > "$DATA/base/info.json"
+          printf '{}\n' > "$DATA/core/info.json"
+
+      # The Factorio icon is not in the repository, so build with a plain orange one.
+      - name: Prepare placeholder icon
+        run: |
+          python3 - FactorioPad/Assets.xcassets/AppIcon.appiconset/icon.png <<'PY'
+          import struct, sys, zlib
+          size = 1024
+          rows = (b"\x00" + bytes((0xE0, 0x7A, 0x1F)) * size) * size
+          def chunk(kind, data):
+              return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+          with open(sys.argv[1], "wb") as icon:
+              icon.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
+                  + chunk(b"IDAT", zlib.compress(rows, 9)) + chunk(b"IEND", b""))
+          PY
+
+      - name: Build the template
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/template"
+          xcodebuild -quiet \
+            -project FactorioPad.xcodeproj \
+            -scheme FactorioPad \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$WORK/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO build
+          PRODUCT="$WORK/DerivedData/Build/Products/Release-iphoneos/FactorioPad.app"
+          test -f "$PRODUCT/FactorioPad"
+          mkdir -p "$WORK/Payload" dist
+          mv "$PRODUCT" "$WORK/Payload/FactorioPad.app"
+          rm -rf "$WORK/Payload/FactorioPad.app/FactorioData" \
+            "$WORK/Payload/FactorioPad.app/Frameworks/FactorioGuest.framework"
+          /usr/bin/ditto --norsrc --noextattr -c -k --keepParent "$WORK/Payload" "$WORK/FactorioPad.ipa"
+          python3 Tools/package_ipa.py template "$WORK/FactorioPad.ipa" dist/FactorioPad-template.ipa
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: FactorioPad-template
+          path: dist/FactorioPad-template.ipa
+          if-no-files-found: error
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: Run tests
+        run: |
+          uv sync --locked
+          uv run --frozen sh Tests/run_tests.sh
