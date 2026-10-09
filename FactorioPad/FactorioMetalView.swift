@@ -19,6 +19,9 @@ final class FactorioHostUIView: UIView {
     private var hasPhysicalKeyboard: Bool { GCKeyboard.coalesced != nil }
     private var hasGamepad: Bool { GCController.controllers().contains { $0.extendedGamepad != nil } }
     private static var factorioStarted = false
+    // Matches the mode FactorioLoader started with; changing it applies after relaunch.
+    private static let useDefaultControls = UserDefaults.standard.object(forKey: "FactoriOSUseDefaultControls") == nil
+        ? true : UserDefaults.standard.bool(forKey: "FactoriOSUseDefaultControls")
     private var primaryTouch: UITouch?
     private var pressedKeys = Set<Int>()
     private var mouseButtons: UIEvent.ButtonMask = []
@@ -188,9 +191,13 @@ final class FactorioHostUIView: UIView {
     }
 
     @objc private func updateControllerCursor() {
-        controllerCursor.isHidden = !inputActive || (!(hasPhysicalMouse && useRawMouse)
-            && !GCController.controllers().contains { $0.extendedGamepad != nil })
-        controllerCursor.frame.origin = FactorioControllerBridgeGetCursorPosition()
+        // In Default Controls, Factorio draws its own gamepad cursor and the bridge is not
+        // running, so this cursor only follows a raw mouse.
+        let showsGamepadCursor = !Self.useDefaultControls
+            && GCController.controllers().contains { $0.extendedGamepad != nil }
+        controllerCursor.isHidden = !inputActive || (!(hasPhysicalMouse && useRawMouse) && !showsGamepadCursor)
+        controllerCursor.frame.origin = (Self.useDefaultControls ? pointerPosition : nil)
+            ?? FactorioControllerBridgeGetCursorPosition()
     }
 
     @objc private func toggleKeyboard() {

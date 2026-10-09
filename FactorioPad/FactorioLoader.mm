@@ -793,8 +793,14 @@ static void *FactorioOpenFramework(NSString *name, int flags)
         FactorioReportError(@"This Factorio game file does not provide compatible input functions.");
         return;
     }
-    FactorioControllerBridgeStart();
-    FactorioControllerBridgeSetViewportSize(windowSize.width, windowSize.height);
+    BOOL useDefaultControls = [[NSUserDefaults standardUserDefaults] objectForKey:@"FactoriOSUseDefaultControls"] == nil
+        ? YES : [[NSUserDefaults standardUserDefaults] boolForKey:@"FactoriOSUseDefaultControls"];
+    if (!useDefaultControls) {
+        FactorioControllerBridgeStart();
+        FactorioControllerBridgeSetViewportSize(windowSize.width, windowSize.height);
+    }
+    FactorioLog(useDefaultControls ? @"Using Factorio native controller controls"
+                                  : @"Using FactorioPad controller mappings");
 
     typedef int (*FactorioMainFunction)(int, char **);
     dlerror();
@@ -810,17 +816,19 @@ static void *FactorioOpenFramework(NSString *name, int flags)
     NSString *windowSizeArgument = [NSString stringWithFormat:@"%ldx%ld",
         lround(width), lround(height)];
 
-    NSArray<NSString *> *arguments = @[
+    NSMutableArray<NSString *> *arguments = [@[
         @"factorio",
         @"--config", configPath,
         @"--mod-directory", modsPath,
         @"--no-log-rotation",
         @"--force-metal",
         @"--fullscreen=false",
-        @"--window-size", windowSizeArgument,
-        @"--nogamepad",
-        @"--single-thread-loading"
-    ];
+        @"--window-size", windowSizeArgument
+    ] mutableCopy];
+    if (!useDefaultControls) {
+        [arguments addObject:@"--nogamepad"];
+    }
+    [arguments addObject:@"--single-thread-loading"];
 
     NSThread *thread = [[NSThread alloc] initWithBlock:^{
         @autoreleasepool {

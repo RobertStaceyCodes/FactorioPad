@@ -4,6 +4,7 @@ struct FactorioControlsView: View {
     var onClose: () -> Void
     var onSaves: () -> Void
     var logURL: URL? = nil
+    @AppStorage("FactoriOSUseDefaultControls") private var useDefaultControls = true
 
     typealias Activity = (title: String, icon: String, controls: [(action: String, buttons: String)])
     static let activities: [Activity] = [
@@ -91,19 +92,36 @@ struct FactorioControlsView: View {
                             .buttonStyle(.bordered)
                             .focusable(false)
                     }
-                    Text("Hold LB (Shift) or RB (Ctrl) before the other button. In an inventory, point at the stack you want to transfer.")
-                        .foregroundStyle(.secondary)
-                    Text("To change a quickbar assignment, point at the slot and press RB + D-pad ↑ to clear it. With an empty hand, press RT on the empty slot and choose a replacement item. Release LT before clearing a slot.")
-                        .foregroundStyle(.secondary)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 380), alignment: .top)],
-                        alignment: .leading, spacing: 16) {
-                        ForEach(Self.activities.indices, id: \.self) { index in
-                            activityCard(Self.activities[index])
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Controller mode").font(.headline)
+                        Picker("Controller mode", selection: $useDefaultControls) {
+                            Text("Default Controls").tag(true)
+                            Text("FactorioPad Controls").tag(false)
                         }
+                        .pickerStyle(.segmented)
+                        Text(useDefaultControls
+                            ? "Factorio handles the connected controller directly using its native controller support. Applies after relaunch."
+                            : "FactoriOS converts controller input using the FactorioPad control mappings shown below. Applies after relaunch.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
-                    Text("Xbox-style positions: A is bottom, B is right, X is left, and Y is top. View is also called Options; Menu is also called Start. These are the default FactorioPad bindings. Custom bindings in Factorio can change them.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    .padding(16)
+                    .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 16))
+                    if !useDefaultControls {
+                        Text("Hold LB (Shift) or RB (Ctrl) before the other button. In an inventory, point at the stack you want to transfer.")
+                            .foregroundStyle(.secondary)
+                        Text("To change a quickbar assignment, point at the slot and press RB + D-pad ↑ to clear it. With an empty hand, press RT on the empty slot and choose a replacement item. Release LT before clearing a slot.")
+                            .foregroundStyle(.secondary)
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 380), alignment: .top)],
+                            alignment: .leading, spacing: 16) {
+                            ForEach(Self.activities.indices, id: \.self) { index in
+                                activityCard(Self.activities[index])
+                            }
+                        }
+                        Text("Xbox-style positions: A is bottom, B is right, X is left, and Y is top. View is also called Options; Menu is also called Start. These are the FactorioPad Controls bindings. Custom bindings in Factorio can change them.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 20)
