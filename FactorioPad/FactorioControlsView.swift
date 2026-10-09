@@ -99,9 +99,10 @@ struct FactorioControlsView: View {
                             Text("FactorioPad Controls").tag(false)
                         }
                         .pickerStyle(.segmented)
+                        .focusable(false)
                         Text(useDefaultControls
                             ? "Factorio handles the connected controller directly using its native controller support. Applies after relaunch."
-                            : "FactoriOS converts controller input using the FactorioPad control mappings shown below. Applies after relaunch.")
+                            : "FactorioPad converts controller input using the FactorioPad control mappings shown below. Applies after relaunch.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
